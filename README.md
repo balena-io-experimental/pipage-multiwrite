@@ -7,13 +7,15 @@
 ## Install via [npm](https://npmjs.com)
 
 ```sh
-$ npm install --global pipage-multiwrite
+npm install --global resin-io-playground/pipage-multiwrite
 ```
 
 ## Install via git
 
-```
-$ git clone https://github.com/resin-io-playground/pipage-multiwrite.git"
+```sh
+git clone https://github.com/resin-io-playground/pipage-multiwrite.git
+cd pipage-multiwrite
+npm install
 ```
 
 ## Usage

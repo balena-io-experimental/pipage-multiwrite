@@ -18,6 +18,9 @@
     "readable-stream": "^2.3.3",
     "yargs": "^10.0.3"
   },
+  "bin": {
+    "multipipage": "bin/multipipage"
+  },
   "scripts": {},
   "repository": {
     "type": "git",
