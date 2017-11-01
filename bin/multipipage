@@ -1,0 +1,118 @@
+#!/usr/bin/env node
+var yargs = require( 'yargs' )
+  .help(false)
+  .version(false)
+  .argv
+
+if( yargs.help || yargs.h ) {
+  process.stdout.write(`
+  Usage: multipipage [options] [devices]
+
+  Options:
+
+    --image <file>
+
+      The image file to flash
+
+    --verify
+
+      Whether or not to verify the image after writing
+
+    --devicemap <file>
+
+      Reads the devices to flash from the specified file;
+      One device per line
+
+    --mode <single|child>
+
+      Which mode to use; defaults to "single"
+        - "single" runs everything on the main process
+        - "child" runs each device write in its own child process
+
+    --threads <number>
+
+      Number of child processes or threads to spawn,
+      defaults to number of devices specified
+
+    --threadpool-size <size>
+
+      Set the childs threadpool size in child mode
+
+  Examples:
+
+    Run on a single thread:
+      $ bin/multipipage --image some.img --mode single /dev/rdisk2 /dev/rdisk3
+
+    Run with child processes:
+      $ bin/multipipage --image some.img --mode child --threadpool-size 6 /dev/rdisk2 /dev/rdisk3
+`)
+  process.exit(0)
+}
+
+if( yargs.v || yargs.version ) {
+  process.stdout.write(`${require('../package.json').version}\n`)
+  process.exit(0)
+}
+
+if( yargs.threadpoolSize ) {
+  console.log( `\nSetting UV_THREADPOOL_SIZE to ${yargs.threadpoolSize}` )
+  process.env.UV_THREADPOOL_SIZE = +yargs.threadpoolSize
+}
+
+var os = require( 'os' )
+var path = require( 'path' )
+var fs = require( 'fs' )
+var childProcess = require( 'child_process' )
+var bytes = require( 'pretty-bytes' )
+var debug = require( 'debug' )( 'multipipage:cli' )
+var multipipage = require( '..' )
+var inspect = require( '../lib/inspect' )
+
+yargs.mode = yargs.mode || 'single'
+
+// inspect.print( yargs )
+
+console.log( `Using ${yargs.mode} mode\n` )
+console.log( `Image: ${inspect(yargs.image)}` )
+console.log( `Devices: ${yargs._.map(inspect).join(', ')}` )
+
+if( yargs.mode === 'single' ) {
+  multipipage.singleMode({
+    imagePath: yargs.image,
+    devices: yargs._.slice(),
+    verify: !!yargs.verify,
+    checksums: yargs.checksums || [ 'crc32' ],
+  }, ( error, writers ) => {
+    // console.log( 'writers', error || writers )
+    writers.map(( writer ) => {
+      writer.on( 'error', (error) => {
+        console.log( 'ERROR', inspect( error ) )
+        process.exit(1)
+      })
+      writer.on( 'finish', (finish) => {
+        console.log( 'FINISH', inspect( writer.options.path ) )
+      })
+      writer.on( 'progress', (state) => {
+        // inspect.print( state )
+        process.stdout.write(
+          `${state.type} ${state.device} – ${state.percentage.toFixed(0)}% – ${bytes(state.speed)}/s\n`
+        )
+      })
+      writer.write()
+    })
+  })
+} else if( yargs.mode === 'child' ) {
+  process.stderr.write( `ERROR: Mode not implemented\n` )
+  process.exit(1)
+} else {
+  process.stderr.write( `ERROR: Unknown mode "${yargs.mode}"\n` )
+  process.exit(1)
+}
+
+// var image = argv[0]
+// var devices = argv.slice(1)
+
+// console.log( `Image: ${image}` )
+// console.log( `Devices: ${devices.join( ', ' )}` )
+
+// set UV_THREADPOOL_SIZE to `max_num_writers + max_num_readers + 4`
