@@ -18,25 +18,15 @@ if( yargs.help || yargs.h ) {
 
       Whether or not to verify the image after writing
 
-    --devicemap <file>
-
-      Reads the devices to flash from the specified file;
-      One device per line
-
     --mode <single|child>
 
       Which mode to use; defaults to "single"
         - "single" runs everything on the main process
         - "child" runs each device write in its own child process
 
-    --threads <number>
-
-      Number of child processes or threads to spawn,
-      defaults to number of devices specified
-
     --threadpool-size <size>
 
-      Set the childs threadpool size in child mode
+      Set the UV_THREADPOOL_SIZE
 
   Examples:
 
@@ -76,7 +66,29 @@ console.log( `Using ${yargs.mode} mode\n` )
 console.log( `Image: ${inspect(yargs.image)}` )
 console.log( `Devices: ${yargs._.map(inspect).join(', ')}` )
 
-if( yargs.mode === 'single' ) {
+if( yargs.child ) {
+  var writer = multipipage.childMode({
+    imagePath: yargs.image,
+    device: yargs.device,
+    verify: !!yargs.verify,
+    checksums: yargs.checksums || [ 'crc32' ],
+  }, ( error, writer ) => {
+    writer.on( 'error', (error) => {
+      console.log( 'ERROR', inspect( error ) )
+      process.exit(1)
+    })
+    writer.on( 'finish', (finish) => {
+      console.log( 'FINISH', inspect( writer.options.path ) )
+    })
+    writer.on( 'progress', (state) => {
+      // inspect.print( state )
+      process.stdout.write(
+        `${state.type} ${state.device} – ${state.percentage.toFixed(0)}% – ${bytes(state.speed)}/s\n`
+      )
+    })
+    writer.write()
+  })
+} else if( yargs.mode === 'single' ) {
   multipipage.singleMode({
     imagePath: yargs.image,
     devices: yargs._.slice(),
@@ -102,8 +114,21 @@ if( yargs.mode === 'single' ) {
     })
   })
 } else if( yargs.mode === 'child' ) {
-  process.stderr.write( `ERROR: Mode not implemented\n` )
-  process.exit(1)
+  var devices = yargs._.slice()
+  var children = devices.map(( device ) => {
+    var args = [
+      '--child',
+      '--image', yargs.image,
+      '--device', device
+    ]
+    if( process.env.UV_THREADPOOL_SIZE ) {
+      args.push( '--threadpool-size', process.env.UV_THREADPOOL_SIZE )
+    }
+    return childProcess.fork( process.argv[1], args, {
+      cwd: process.cwd(),
+      env: process.env
+    })
+  })
 } else {
   process.stderr.write( `ERROR: Unknown mode "${yargs.mode}"\n` )
   process.exit(1)

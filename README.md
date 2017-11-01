@@ -33,25 +33,15 @@ Options:
 
     Whether or not to verify the image after writing
 
-  --devicemap <file>
-
-    Reads the devices to flash from the specified file;
-    One device per line
-
   --mode <single|child>
 
     Which mode to use; defaults to "single"
       - "single" runs everything on the main process
       - "child" runs each device write in its own child process
 
-  --threads <number>
-
-    Number of child processes or threads to spawn,
-    defaults to number of devices specified
-
   --threadpool-size <size>
 
-    Set the childs threadpool size in child mode
+    Set the UV_THREADPOOL_SIZE
 
 Examples:
 
